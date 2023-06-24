@@ -1,0 +1,69 @@
+import pandas as pd
+import requests
+import time
+
+# Função para consultar o CNPJ na API e obter as informações
+def processar_cnpj(cnpj):
+    # Remover caracteres especiais do CNPJ
+    cnpj = cnpj.replace('.', '').replace('/', '').replace('-', '')
+    
+    # Consultar a API
+    url = f'https://www.receitaws.com.br/v1/cnpj/{cnpj}'
+    response = requests.get(url)
+    
+    # Verificar se a consulta foi bem-sucedida
+    if response.status_code == 200:
+        # Extrair as informações do JSON de resposta
+        data = response.json()
+        nome = data.get('nome', '')
+        fantasia = data.get('fantasia', '')
+        logradouro = data.get('logradouro', '')
+        numero = data.get('numero', '')
+        complemento = data.get('complemento', '')
+        cep = data.get('cep', '')
+        bairro = data.get('bairro', '')
+        municipio = data.get('municipio', '')
+        uf = data.get('uf', '')
+        email = data.get('email', '')
+        telefone = data.get('telefone', '')
+        
+        # Retornar as informações como um dicionário
+        return {
+            'Nome': nome,
+            'Fantasia': fantasia,
+            'Logradouro': logradouro,
+            'Número': numero,
+            'Complemento': complemento,
+            'CEP': cep,
+            'Bairro': bairro,
+            'Município': municipio,
+            'UF': uf,
+            'E-mail': email,
+            'Telefone': telefone
+        }
+    else:
+        # Em caso de falha na consulta, retornar um dicionário vazio
+        return {}
+
+# Carregar a planilha
+planilha = pd.read_excel('/content/sample_data/CNPJ.xlsx')
+
+# Iterar sobre cada linha da planilha
+for index, row in planilha.iterrows():
+    # Obter o CNPJ da linha atual
+    cnpj = row['cnpj']
+    
+    # Consultar a API e obter as informações
+    info_cnpj = processar_cnpj(cnpj)
+    
+    # Verificar se as informações foram obtidas com sucesso
+    if info_cnpj:
+        # Preencher as colunas da linha atual com as informações obtidas
+        for coluna, valor in info_cnpj.items():
+            planilha.at[index, coluna] = valor
+    
+    # Aguardar 20 segundos antes da próxima consulta
+    time.sleep(20)
+
+# Salvar as informações na mesma planilha
+planilha.to_excel('/content/sample_data/CNPJ.xlsx', index=False)
