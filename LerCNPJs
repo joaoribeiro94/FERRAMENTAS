@@ -5,7 +5,7 @@ import time
 # Função para consultar o CNPJ na API e obter as informações
 def processar_cnpj(cnpj):
     # Remover caracteres especiais do CNPJ
-    cnpj = cnpj.replace('.', '').replace('/', '').replace('-', '')
+    cnpj = str(cnpj).replace('.', '').replace('/', '').replace('-', '')
     
     # Consultar a API
     url = f'https://www.receitaws.com.br/v1/cnpj/{cnpj}'
@@ -46,7 +46,7 @@ def processar_cnpj(cnpj):
         return {}
 
 # Carregar a planilha
-planilha = pd.read_excel('/content/sample_data/CNPJ.xlsx')
+planilha = pd.read_excel('/content/sample_data/CNPJ2.xlsx')
 
 # Iterar sobre cada linha da planilha
 for index, row in planilha.iterrows():
@@ -66,4 +66,5 @@ for index, row in planilha.iterrows():
     time.sleep(20)
 
 # Salvar as informações na mesma planilha
-planilha.to_excel('/content/sample_data/CNPJ.xlsx', index=False)
+planilha.to_excel('/content/sample_data/CNPJ2.xlsx', index=False)
+
