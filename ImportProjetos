@@ -1,1 +1,28 @@
+import urllib.parse
+import pandas as pd
+import requests
+import datetime
 
+df = pd.read_excel('/content/sample_data/projetos reag.xlsx')
+
+for index, row in df.iterrows():
+    codint = int(row['codint'])
+    nome = str(row['nome'])
+    inativo = str(row['inativo'])
+    
+    payload = {
+        "call": "IncluirProjeto",
+        "app_key": "3438358561638",
+        "app_secret": "4d000d2da11eb9ed650830f6fd606875",
+        "param": [{"codint": codint, "nome": nome, "inativo": inativo}]
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    url = 'https://app.omie.com.br/api/v1/geral/projetos/'
+    response = requests.post(url, json=payload, headers=headers)
+
+    if response.status_code == 200:
+        print(f'Tarefa {nome}/{codint} incluída com sucesso')
+    else:
+        print(f'Erro ao incluir tarefa {nome}/{codint}: {response.content}')
