@@ -1,1 +1,28 @@
+import urllib.parse
+import pandas as pd
+import requests
+import datetime
 
+df = pd.read_excel('/content/sample_data/Caract reag.xlsx')
+
+for index, row in df.iterrows():
+    codigo_cliente_omie = int(row['codigo_cliente_omie'])
+    campo = str(row['campo'])
+    conteudo = str(row['conteudo'])
+    
+    payload = {
+        "call": "IncluirCaractCliente",
+        "app_key": "3438373894956",
+        "app_secret": "ac3646e1457c63381aea64030814262c",
+        "param": [{"codigo_cliente_omie": codigo_cliente_omie, "campo": campo, "conteudo": conteudo}]
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    url = 'https://app.omie.com.br/api/v1/geral/clientescaract/'
+    response = requests.post(url, json=payload, headers=headers)
+
+    if response.status_code == 200:
+        print(f'Tarefa {codigo_cliente_omie}/{campo} incluída com sucesso')
+    else:
+        print(f'Erro ao incluir tarefa {codigo_cliente_omie}/{campo}: {response.content}')
