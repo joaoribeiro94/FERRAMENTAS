@@ -1,1 +1,69 @@
+import os
+import shutil
+import zipfile
+import xml.etree.ElementTree as ET
+
+def extrair_CFOPs(arquivo_xml):
+    # Carrega o arquivo XML e cria um objeto de ElementTree
+    tree = ET.parse(arquivo_xml)
+
+    # Obtem o elemento raiz do XML
+    root = tree.getroot()
+
+    # Inicializa uma lista vazia para armazenar os códigos CFOP
+    cfops = []
+
+    # Percorre todos os elementos do XML
+    for elem in root.iter():
+        # Se a tag do elemento termina com 'CFOP', adiciona o texto do elemento à lista de CFOPs
+        if elem.tag.endswith('CFOP'):
+            try:
+                # Converte o texto do elemento em um número inteiro e adiciona à lista de CFOPs
+                cfops.append(int(elem.text))
+            except ValueError:
+                # Se o texto do elemento não pode ser convertido em um número inteiro,
+                # ignora este elemento e continua com o próximo
+                pass
+
+    return cfops
+
+# Extraia os arquivos do zip para uma pasta chamada 'EXTRAC'
+with zipfile.ZipFile('/content/sample_data/01-06-2023_30-06-2023_nfe_part2.zip', 'r') as zip_ref:
+    zip_ref.extractall('/content/sample_data/EXTRAC')
+
+# Itere sobre os arquivos extraídos
+for filename in os.listdir('/content/sample_data/EXTRAC'):
+    if filename.endswith('.xml'):
+        filepath = os.path.join('/content/sample_data/EXTRAC', filename)
+        try:
+            cfops = extrair_CFOPs(filepath)
+        except ET.ParseError:
+            print(f'Erro ao analisar arquivo XML: {filename}')
+            continue
+
+        # Para cada CFOP único no arquivo, mova o arquivo para a pasta correspondente
+        for unique_cfop in set(cfops):
+            # Crie a pasta se ela não existir
+            os.makedirs(f'/content/sample_data/EXTRAC/{unique_cfop}', exist_ok=True)
+
+            # Prepare o caminho do destino
+            destination = f'/content/sample_data/EXTRAC/{unique_cfop}/{filename}'
+
+            print(f'Movendo {filepath} para {destination}')  # Imprima o caminho do arquivo e o destino
+
+            try:
+                # Mova o arquivo para a pasta
+                shutil.move(filepath, destination)
+            except FileNotFoundError as e:
+                print(f'Erro ao mover o arquivo: {e}')
+                # ... restante do seu código
+
+# Caminho da pasta que você quer compactar
+dir_to_zip = '/content/sample_data/EXTRAC'
+
+# Caminho do arquivo zip que você quer criar
+zipfile_path = '/content/sample_data/EXTRAC.zip'
+
+# Crie um arquivo zip da pasta
+shutil.make_archive(zipfile_path, 'zip', dir_to_zip)
 
