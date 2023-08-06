@@ -13,7 +13,7 @@ for index, row in df.iterrows():
     payload = {
         "call": "IncluirCaractCliente",
         "app_key": "3438373894956",
-        "app_secret": "ac3646e1457c63381aea64030814262c",
+        "app_secret": "ac364xxxxxx14262c",
         "param": [{"codigo_cliente_omie": codigo_cliente_omie, "campo": campo, "conteudo": conteudo}]
     }
     headers = {
