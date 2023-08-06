@@ -13,7 +13,7 @@ for index, row in df.iterrows():
     payload = {
         "call": "IncluirProjeto",
         "app_key": "3438358561638",
-        "app_secret": "4d000d2da11eb9ed650830f6fd606875",
+        "app_secret": "4d000xxxxxxxxxxxx0830f6fd606875",
         "param": [{"codint": codint, "nome": nome, "inativo": inativo}]
     }
     headers = {
