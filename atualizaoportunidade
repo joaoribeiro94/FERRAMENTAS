@@ -1,0 +1,47 @@
+import urllib.parse
+import pandas as pd
+import requests
+import datetime
+
+# Ler a planilha Excel
+df = pd.read_excel('/content/sample_data/oportunidades.xlsx')
+
+for index, row in df.iterrows():
+    nCodOp = int(row['nCodOp'])
+    cDesOp = str(row['cDesOp'])
+    nCodConta = int(row['nCodConta'])
+    nCodContato = int(row['nCodContato'])
+    nCodOrigem = int(row['nCodOrigem'])
+    nCodSolucao = int(row['nCodSolucao'])
+    nCodVendedor = int(row['nCodVendedor'])
+    
+    # Adaptar a estrutura do payload para a nova chamada
+    payload = {
+        "call": "UpsertOportunidade",
+        "app_key": "2545882787448",
+        "app_secret": "b0b8******************6466",
+        "param": [{
+            "identificacao": {
+                "nCodOp": nCodOp,
+                "cDesOp": cDesOp,
+                "nCodConta": nCodConta,
+                "nCodContato": nCodContato,
+                "nCodOrigem": nCodOrigem,
+                "nCodSolucao": nCodSolucao,
+                "nCodVendedor": nCodVendedor
+            }
+        }]
+    }
+
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    url = 'https://app.omie.com.br/api/v1/crm/oportunidades/'
+    response = requests.post(url, json=payload, headers=headers)
+
+    if response.status_code == 200:
+        print(f'Oportunidade {cDesOp}/{nCodOp} inserida ou atualizada com sucesso')
+    else:
+        print(f'Erro ao inserir ou atualizar oportunidade {cDesOp}/{nCodOp}: {response.content}')
+
