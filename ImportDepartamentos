@@ -1,1 +1,49 @@
+import pandas as pd
+import requests
 
+# Carregar os dados
+df = pd.read_excel('/content/sample_data/123.xlsx')
+
+# Definindo uma função para determinar o departamento pai
+def get_parent_code(structure, cod_mapping):
+    if "." not in structure:
+        return cod_mapping.get("root")
+    parent_structure = ".".join(structure.split(".")[:-1])
+    return cod_mapping.get(parent_structure)
+
+# Dicionário para mapear a estrutura ao código retornado pela API
+cod_mapping = {"root": "9754555016"}
+
+# Endereço da API e cabeçalhos
+url = 'https://app.omie.com.br/api/v1/geral/departamentos/'
+headers = {
+    "Content-Type": "application/json"
+}
+
+for index, row in df.iterrows():
+    descricao = str(row['DESCRICAO'])
+    estrutura = str(row['ESTRUTURA'])
+    
+    # Determinar o código do departamento pai
+    parent_code = get_parent_code(estrutura, cod_mapping)
+
+    payload = {
+        "call": "IncluirDepartamento",
+        "app_key": "3887348779314",
+        "app_secret": "e81a2be37d2bdbba7965d85a3570364a",
+        "param": [{
+            "descricao": descricao,
+            "codigo": parent_code
+        }]
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    
+    if response.status_code == 200:
+        resp_content = response.json()
+        # Atualizar o mapeamento com o novo código retornado
+        if "codigo" in resp_content:
+            cod_mapping[estrutura] = resp_content["codigo"]
+        print(f'Departamento {descricao}/{estrutura} incluído com sucesso')
+    else:
+        print(f'Erro ao incluir departamento {descricao}/{estrutura}: {response.content}')
