@@ -1,0 +1,70 @@
+import pandas as pd
+import requests
+import datetime
+import time
+
+# Carrega os dados da planilha de tarefas
+df = pd.read_excel('/content/sample_data/TAREFAS ELEV.xlsx')
+
+# Define os parâmetros comuns para todas as chamadas
+payload_common = {
+    "call": "IncluirTarefa",
+    "app_key": "4220081779914",
+    "app_secret": "163fee133e3b45eaea742c84d69312b4"
+}
+
+# Define o valor padrão para nCodNotif
+nCodNotif_default = 99999
+
+# Define o intervalo entre as requisições para não exceder 4 requisições por segundo
+interval = 1 / 4  # 4 requisições por segundo
+
+# Itera sobre cada linha da planilha de tarefas
+for index, row in df.iterrows():
+    # Coleta os dados específicos de cada tarefa
+    nCodOp = int(row['nCodOp'])
+    cCodInt = str(row['cCodInt'])
+    nCodUsuario = int(row['nCodUsuario'])
+    dData = datetime.datetime.now().strftime("%d/%m/%Y")  # Formata a data atual como 'DD/MM/AAAA'
+    cHora = str(row['cHora'])
+    nCodAtividade = int(row['nCodAtividade'])
+    cRealizada = str(row['cRealizada'])
+    cDescricao = str(row['cDescricao'])
+    
+    # Define os parâmetros específicos para esta tarefa
+    payload_task = {
+        "param": [{
+            "nCodOp": nCodOp,
+            "cCodInt": cCodInt,
+            "nCodUsuario": nCodUsuario,
+            "dData": dData,
+            "cHora": cHora,
+            "nCodNotif": nCodNotif_default,  # Valor padrão para nCodNotif
+            "nCodAtividade": nCodAtividade,
+            "cRealizada": cRealizada,
+            "cDescricao": cDescricao
+        }]
+    }
+    
+    # Combina os parâmetros comuns e específicos
+    payload = {**payload_common, **payload_task}
+    
+    # Define os cabeçalhos da requisição
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # Define a URL da API
+    url = 'https://app.omie.com.br/api/v1/crm/tarefas/'
+    
+    # Envia a requisição POST para a API
+    response = requests.post(url, json=payload, headers=headers)
+    
+    # Verifica o status da resposta
+    if response.status_code == 200:
+        print(f'Tarefa {cDescricao}/{nCodOp} incluída com sucesso')
+    else:
+        print(f'Erro ao incluir tarefa {cDescricao}/{nCodOp}: {response.content}')
+    
+    # Aguarda o intervalo para não exceder 4 requisições por segundo
+    time.sleep(interval)
