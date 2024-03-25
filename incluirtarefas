@@ -9,8 +9,8 @@ df = pd.read_excel('/content/sample_data/TAREFAS ELEV.xlsx')
 # Define os parâmetros comuns para todas as chamadas
 payload_common = {
     "call": "IncluirTarefa",
-    "app_key": "4220081779914",
-    "app_secret": "163fee133e3b45eaea742c84d69312b4"
+    "app_key": "xxxxxx",
+    "app_secret": "xxxxxx"
 }
 
 # Define o valor padrão para nCodNotif
