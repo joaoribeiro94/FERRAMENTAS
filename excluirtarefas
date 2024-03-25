@@ -6,8 +6,8 @@ def excluir_tarefa(nCodOp, nCodTarefa, cCodInt):
     url = 'https://app.omie.com.br/api/v1/crm/tarefas/'
     payload = {
         "call": "ExcluirTarefa",
-        "app_key": "4220081779914",
-        "app_secret": "163fee133e3b45eaea742c84d69312b4",
+        "app_key": "xxxx",
+        "app_secret": "xxxxxx",
         "param": [{"nCodOp": nCodOp, "nCodTarefa": nCodTarefa, "cCodInt": cCodInt}]
     }
     headers = {
