@@ -1,0 +1,35 @@
+import pandas as pd
+import requests
+
+# Função para excluir uma tarefa usando a API
+def excluir_tarefa(nCodOp, nCodTarefa, cCodInt):
+    url = 'https://app.omie.com.br/api/v1/crm/tarefas/'
+    payload = {
+        "call": "ExcluirTarefa",
+        "app_key": "4220081779914",
+        "app_secret": "163fee133e3b45eaea742c84d69312b4",
+        "param": [{"nCodOp": nCodOp, "nCodTarefa": nCodTarefa, "cCodInt": cCodInt}]
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    response = requests.post(url, json=payload, headers=headers)
+    return response
+
+# Carregar o dataframe do Excel
+df = pd.read_excel('/content/sample_data/EXCLUIR TAREFAS.xlsx')
+
+# Iterar sobre as linhas do dataframe
+for index, row in df.iterrows():
+    nCodOp = int(row['nCodOp'])
+    nCodTarefa = int(row['nCodTarefa'])
+    cCodInt = str(row['cCodInt'])
+
+    # Chamar a função para excluir a tarefa
+    response = excluir_tarefa(nCodOp, nCodTarefa, cCodInt)
+
+    # Verificar a resposta da API
+    if response.status_code == 200:
+        print(f'Tarefa {nCodTarefa} da Oportunidade {nCodOp} excluída com sucesso')
+    else:
+        print(f'Erro ao excluir tarefa {nCodTarefa} da Oportunidade {nCodOp}: {response.content}')
