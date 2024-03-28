@@ -1,0 +1,44 @@
+import pandas as pd
+import requests
+import re
+import time
+
+# Função para associar código de cliente Omie ao código de cliente de integração
+def associar_cod_cliente(codigo_cliente_omie, codigo_cliente_integracao):
+    url = 'https://app.omie.com.br/api/v1/geral/clientes/'
+    payload = {
+        "call": "AssociarCodIntCliente",
+       "app_key": "3925206741456",
+        "app_secret": "5a709e14095e7dbe9dd928a136484336 ",
+        "param": [{"codigo_cliente_omie": codigo_cliente_omie, "codigo_cliente_integracao": codigo_cliente_integracao}]
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    response = requests.post(url, json=payload, headers=headers)
+    return response
+
+# Função para limpar caracteres especiais
+def limpar_codigo(codigo):
+    codigo_limpo = re.sub(r'\D', '', codigo)  # Remover caracteres não numéricos
+    return codigo_limpo
+
+# Carregar o dataframe do Excel
+df = pd.read_excel('/content/sample_data/ZL CLIENTES.xlsx')
+
+# Iterar sobre as linhas do dataframe e fazer as chamadas
+for index, row in df.iterrows():
+    codigo_cliente_omie = int(row['codigo_cliente_omie'])
+    codigo_cliente_integracao = limpar_codigo(str(row['codigo_cliente_integracao']))
+
+    # Associar os códigos de cliente
+    response = associar_cod_cliente(codigo_cliente_omie, codigo_cliente_integracao)
+
+    # Verificar a resposta da API
+    if response.status_code == 200:
+        print(f'Códigos de cliente associados com sucesso: Omie {codigo_cliente_omie} -> Integração {codigo_cliente_integracao}')
+    else:
+        print(f'Erro ao associar códigos de cliente: Omie {codigo_cliente_omie} -> Integração {codigo_cliente_integracao}')
+    
+    # Esperar 0.25 segundos antes de fazer a próxima chamada (respeitando a limitação)
+    time.sleep(0.25)
