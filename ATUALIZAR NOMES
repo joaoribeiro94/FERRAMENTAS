@@ -1,0 +1,59 @@
+import pandas as pd
+import requests
+import unicodedata
+import re
+import time
+
+# Função para remover caracteres especiais, converter para maiúsculas e remover acentos
+def limpar_texto(texto):
+    # Converter para maiúsculas e remover acentos
+    texto = texto.upper()
+    texto = ''.join((c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn'))
+    # Remover caracteres especiais
+    texto = re.sub(r'[^A-Z0-9\s]', '', texto)
+    return texto
+
+# Função para alterar um cliente usando a API
+def alterar_cliente(codigo_cliente_omie, razao_social, nome_fantasia):
+    url = 'https://app.omie.com.br/api/v1/geral/clientes/'
+    payload = {
+        "call": "AlterarCliente",
+        "app_key": "XXXX",
+        "app_secret": "XXXXX ",
+        "param": [{
+            "codigo_cliente_omie": codigo_cliente_omie,
+            "razao_social": razao_social,
+            "nome_fantasia": nome_fantasia
+        }]
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    response = requests.post(url, json=payload, headers=headers)
+    return response
+
+# Define o intervalo entre as requisições para não exceder 4 requisições por segundo
+interval = 1 / 4  # 4 requisições por segundo
+
+# Carregar o dataframe do Excel
+df = pd.read_excel('/content/sample_data/nomes beauty.xlsx')
+
+# Iterar sobre as linhas do dataframe
+for index, row in df.iterrows():
+    codigo_cliente_omie = row['codigo_cliente_omie']
+    
+    # Limpar os valores das colunas razao_social e nome_fantasia
+    razao_social = limpar_texto(row['razao_social'])
+    nome_fantasia = limpar_texto(row['nome_fantasia'])
+
+    # Chamar a função para alterar o cliente
+    response = alterar_cliente(codigo_cliente_omie, razao_social, nome_fantasia)
+
+    # Verificar a resposta da API
+    if response.status_code == 200:
+        print(f'Cliente {codigo_cliente_omie} alterado com sucesso')
+    else:
+        print(f'Erro ao alterar cliente {codigo_cliente_omie}: {response.content}')
+    
+    # Aguarda o intervalo para não exceder 4 requisições por segundo
+    time.sleep(interval)
