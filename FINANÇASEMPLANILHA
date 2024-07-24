@@ -1,0 +1,67 @@
+import pandas as pd
+import requests
+import json
+import time
+
+# Função para chamar a API e obter os dados estruturados
+def chamar_api():
+    url = 'https://app.omie.com.br/api/v1/financas/contareceber/'
+    headers = {
+        'Content-type': 'application/json'
+    }
+    data = {
+        'call': 'ListarContasReceber',
+        'app_key': '3430208903121',
+        'app_secret': '94ed62fcadc1d3b12eccee7961a79165',
+        'param': [
+            {
+                'pagina': 2,
+                'registros_por_pagina': 1000,
+                'apenas_importado_api': 'N'
+            }
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f'Erro na chamada da API: {response.status_code}')
+        return None
+
+# Função para processar os dados da API e retornar um DataFrame formatado
+def processar_dados_api(api_data):
+    rows = []
+    columns = set()
+
+    for item in api_data['conta_receber_cadastro']:
+        row = {}
+        for key, value in item.items():
+            if isinstance(value, dict):
+                for subkey, subvalue in value.items():
+                    row[key + '_' + subkey] = subvalue
+                    columns.add(key + '_' + subkey)
+            elif isinstance(value, list):
+                row[key] = json.dumps(value)
+                columns.add(key)
+            else:
+                row[key] = value
+                columns.add(key)
+        rows.append(row)
+
+    df = pd.DataFrame(rows, columns=sorted(columns))
+    return df
+
+# Chamar a API e obter os dados
+api_data = chamar_api()
+
+if api_data:
+    # Processar os dados da API
+    df = processar_dados_api(api_data)
+
+    # Salvar os dados na planilha já carregada no Colab
+    df.to_excel('/content/sample_data/Pasta3.xlsx', index=False)
+    
+    print('Dados atualizados na planilha com sucesso!')
+else:
+    print('Falha ao obter dados da API.')
