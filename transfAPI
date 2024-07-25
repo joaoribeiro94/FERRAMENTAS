@@ -1,0 +1,69 @@
+import pandas as pd
+import requests
+import time
+
+# Carrega os dados da planilha
+df = pd.read_excel('/content/sample_data/juittransf.xlsx')  # Substitua pelo caminho da sua planilha
+
+# Converte a coluna 'dDtLanc' para o formato datetime
+df['dDtLanc'] = pd.to_datetime(df['dDtLanc'], format='%d/%m/%Y')
+
+# Define os parâmetros comuns para todas as chamadas
+app_key = "4494640172022"
+app_secret = "5397720f49affedbfaa7af307b1831bb"
+url = "https://app.omie.com.br/api/v1/financas/contacorrentelancamentos/"
+
+# Define o intervalo entre as requisições para não exceder 4 requisições por segundo
+interval = 1 / 4  # 4 requisições por segundo
+
+# Itera sobre cada linha da planilha
+for index, row in df.iterrows():
+    # Coleta os dados específicos de cada linha
+    cCodIntLanc = str(row['cCodIntLanc'])
+    nCodCC = int(row['nCodCC'])
+    dDtLanc = row['dDtLanc'].strftime("%d/%m/%Y")  # Formata a data como 'DD/MM/AAAA'
+    nValorLanc = float(row['nValorLanc'])
+    cCodCateg = str(row['cCodCateg'])
+    cTipo = str(row['cTipo'])
+    cobs = str(row['cobs'])
+    nCodCCDestino = int(row['nCodCCDestino'])
+    
+    # Define os parâmetros específicos para esta chamada
+    payload = {
+        "call": "IncluirLancCC",
+        "app_key": app_key,
+        "app_secret": app_secret,
+        "param": [{
+            "cCodIntLanc": cCodIntLanc,
+            "cabecalho": {
+                "nCodCC": nCodCC,
+                "dDtLanc": dDtLanc,
+                "nValorLanc": nValorLanc
+            },
+            "detalhes": {
+                "cCodCateg": cCodCateg,
+                "cTipo": cTipo,
+                "cobs": cobs
+            },
+            "transferencia": {
+                "nCodCCDestino": nCodCCDestino
+            }
+        }]
+    }
+    
+    # Define os cabeçalhos da requisição
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # Envia a requisição POST para a API
+    response = requests.post(url, json=payload, headers=headers)
+    
+    # Verifica o status da resposta
+    if response.status_code == 200:
+        print(f'Lancamento {cCodIntLanc} incluído com sucesso')
+    else:
+        print(f'Erro ao incluir lançamento {cCodIntLanc}: {response.content}')
+    
+    # Aguarda o intervalo para não exceder o limite de requisições
+    time.sleep(interval)
