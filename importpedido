@@ -1,0 +1,123 @@
+import pandas as pd
+import requests
+import datetime
+import time
+
+# Carregar os dados da planilha de pedidos
+df = pd.read_excel('/content/sample_data/TESTE PEDIDO.xlsx')
+
+# Converte os valores da coluna 'valor_unitario' para float após remover o símbolo 'R$' e possíveis espaços
+df['valor_unitario'] = df['valor_unitario'].replace({'R\$': '', ' ': ''}, regex=True).astype(float)
+
+# Converte a coluna de data para o formato correto (DD/MM/YYYY)
+df['data_previsao'] = pd.to_datetime(df['data_previsao'], format='%d/%m/%Y').dt.strftime('%d/%m/%Y')
+df['data_vencimento'] = pd.to_datetime(df['data_vencimento'], format='%d/%m/%Y').dt.strftime('%d/%m/%Y')
+
+# Define os parâmetros comuns para todas as chamadas
+payload_common = {
+    "call": "IncluirPedido",
+    "app_key": "2000530332801",
+    "app_secret": "0f338fe58689be6bc691966aaff50ca8"
+}
+
+# Define o intervalo entre as requisições para não exceder o limite
+interval = 1 / 4  # 4 requisições por segundo
+
+# Agrupa os dados pelo número do pedido
+grouped = df.groupby('numero_pedido')
+
+# Itera sobre cada grupo (pedido)
+for numero_pedido, group in grouped:
+    # Coleta os dados do cabeçalho do pedido
+    codigo_cliente = str(group['codigo_cliente'].iloc[0])
+    codigo_pedido_integracao = str(group['codigo_pedido_integracao'].iloc[0])
+    data_previsao = str(group['data_previsao'].iloc[0])  # Garantindo o formato DD/MM/YYYY
+    codigo_parcela = int(group['codigo_parcela'].iloc[0])
+    modalidade_frete = str(group['modalidade_frete'].iloc[0])
+    codigo_categoria = str(group['codigo_categoria'].iloc[0])
+    codigo_conta_corrente = str(group['codigo_conta_corrente'].iloc[0])
+    enviar_email = str(group['enviar_email'].iloc[0])
+    nao_gerar_financeiro = str(group['nao_gerar_financeiro'].iloc[0])
+
+    # Cria a lista de itens do pedido
+    itens = []
+    parcelas = []
+
+    for _, row in group.iterrows():
+        item = {
+            "ide": {
+                "codigo_item_integracao": str(row['codigo_item_integracao'])
+            },
+            "inf_adic": {
+                "nao_gerar_financeiro": str(row['nao_gerar_financeiro'])
+            },
+            "produto": {
+                "cfop": str(row['cfop']),
+                "codigo_produto": str(row['codigo_produto']),
+                "descricao": str(row['descricao']),
+                "quantidade": int(row['quantidade']),
+                "valor_unitario": float(row['valor_unitario'])
+            }
+        }
+        itens.append(item)
+        
+        # Adiciona parcelas ao mesmo pedido
+        parcela = {
+            "data_vencimento": str(row['data_vencimento']),  # Garantindo o formato DD/MM/YYYY
+            "numero_parcela": int(row['codigo_parcela']),
+            "percentual": 100 / len(group),  # Divide igualmente entre parcelas
+            "valor": float(row['valor_unitario']) * int(row['quantidade'])  # Valor total do item
+        }
+        if parcela not in parcelas:
+            parcelas.append(parcela)
+    
+    # Define os parâmetros específicos para este pedido
+    payload_pedido = {
+        "param": [{
+            "cabecalho": {
+                "codigo_cliente": codigo_cliente,
+                "codigo_pedido_integracao": codigo_pedido_integracao,
+                "data_previsao": data_previsao,
+                "etapa": "10",
+                "numero_pedido": numero_pedido,
+                "codigo_parcela": codigo_parcela,
+                "quantidade_itens": len(itens)
+            },
+            "det": itens,
+            "frete": {
+                "modalidade": modalidade_frete
+            },
+            "informacoes_adicionais": {
+                "codigo_categoria": codigo_categoria,
+                "codigo_conta_corrente": codigo_conta_corrente,
+                "consumidor_final": "N",  # Assume padrão como 'N'
+                "enviar_email": enviar_email
+            },
+            "lista_parcelas": {
+                "parcela": parcelas
+            }
+        }]
+    }
+    
+    # Combina os parâmetros comuns e específicos
+    payload = {**payload_common, **payload_pedido}
+    
+    # Define os cabeçalhos da requisição
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # Define a URL da API
+    url = 'https://app.omie.com.br/api/v1/produtos/pedido/'
+    
+    # Envia a requisição POST para a API
+    response = requests.post(url, json=payload, headers=headers)
+    
+    # Verifica o status da resposta
+    if response.status_code == 200:
+        print(f'Pedido {numero_pedido} incluído com sucesso')
+    else:
+        print(f'Erro ao incluir pedido {numero_pedido}: {response.content}')
+    
+    # Aguarda o intervalo para não exceder o limite de requisições
+    time.sleep(interval)
