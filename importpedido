@@ -4,7 +4,7 @@ import datetime
 import time
 
 # Carregar os dados da planilha de pedidos
-df = pd.read_excel('/content/sample_data/TESTE PEDIDO.xlsx')
+df = pd.read_excel('/content/sample_data/TESTE PEDIDO 2.xlsx')
 
 # Converte os valores da coluna 'valor_unitario' para float após remover o símbolo 'R$' e possíveis espaços
 df['valor_unitario'] = df['valor_unitario'].replace({'R\$': '', ' ': ''}, regex=True).astype(float)
@@ -38,11 +38,15 @@ for numero_pedido, group in grouped:
     codigo_conta_corrente = str(group['codigo_conta_corrente'].iloc[0])
     enviar_email = str(group['enviar_email'].iloc[0])
     nao_gerar_financeiro = str(group['nao_gerar_financeiro'].iloc[0])
+    obs_venda = str(group['obs_venda'].iloc[0])  # Novo campo
+    utilizar_emails = str(group['utilizar_emails'].iloc[0])  # Novo campo
+    impostos_embutidos = str(group['impostos_embutidos'].iloc[0])  # Novo campo
+    codVend = str(group['nVendedor'].iloc[0])  # Novo campo
 
     # Cria a lista de itens do pedido
     itens = []
-    parcelas = []
-
+    
+    # Adiciona os itens do pedido
     for _, row in group.iterrows():
         item = {
             "ide": {
@@ -60,16 +64,14 @@ for numero_pedido, group in grouped:
             }
         }
         itens.append(item)
-        
-        # Adiciona parcelas ao mesmo pedido
-        parcela = {
-            "data_vencimento": str(row['data_vencimento']),  # Garantindo o formato DD/MM/YYYY
-            "numero_parcela": int(row['codigo_parcela']),
-            "percentual": 100 / len(group),  # Divide igualmente entre parcelas
-            "valor": float(row['valor_unitario']) * int(row['quantidade'])  # Valor total do item
-        }
-        if parcela not in parcelas:
-            parcelas.append(parcela)
+    
+    # Define a parcela única para o pedido
+    parcela = {
+        "data_vencimento": str(group['data_vencimento'].iloc[0]),  # Garantindo o formato DD/MM/YYYY
+        "numero_parcela": codigo_parcela,
+        "percentual": 100,  # 100% do valor total
+        "valor": (group['valor_unitario'] * group['quantidade']).sum()  # Valor total do pedido
+    }
     
     # Define os parâmetros específicos para este pedido
     payload_pedido = {
@@ -91,10 +93,16 @@ for numero_pedido, group in grouped:
                 "codigo_categoria": codigo_categoria,
                 "codigo_conta_corrente": codigo_conta_corrente,
                 "consumidor_final": "N",  # Assume padrão como 'N'
-                "enviar_email": enviar_email
+                "enviar_email": enviar_email,
+                "utilizar_emails": utilizar_emails,  # Novo campo
+                "impostos_embutidos": impostos_embutidos,  # Novo campo
+                "codVend": codVend  # Novo campo
+            },
+            "observacoes": {
+                "obs_venda": obs_venda  # Novo campo
             },
             "lista_parcelas": {
-                "parcela": parcelas
+                "parcela": [parcela]  # Apenas uma parcela
             }
         }]
     }
@@ -121,3 +129,4 @@ for numero_pedido, group in grouped:
     
     # Aguarda o intervalo para não exceder o limite de requisições
     time.sleep(interval)
+
