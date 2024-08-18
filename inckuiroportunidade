@@ -8,8 +8,8 @@ df = pd.read_excel('/content/sample_data/OPORTUNIDADES.xlsx')
 # Define os parâmetros comuns para todas as chamadas
 payload_common = {
     "call": "IncluirOportunidade",
-     "app_key": "4220081779914",
-    "app_secret": "163fee133e3b45eaea742c84d69312b4"
+     "app_key": "xxx",
+    "app_secret": "xxxx"
 }
 
 # Define o intervalo entre as requisições para não exceder 4 requisições por segundo
