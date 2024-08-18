@@ -1,0 +1,65 @@
+import pandas as pd
+import requests
+import time
+
+# Carrega os dados da planilha de oportunidades
+df = pd.read_excel('/content/sample_data/OPORTUNIDADES.xlsx')
+
+# Define os parâmetros comuns para todas as chamadas
+payload_common = {
+    "call": "IncluirOportunidade",
+     "app_key": "4220081779914",
+    "app_secret": "163fee133e3b45eaea742c84d69312b4"
+}
+
+# Define o intervalo entre as requisições para não exceder 4 requisições por segundo
+interval = 1 / 4  # 4 requisições por segundo
+
+# Itera sobre cada linha da planilha de oportunidades
+for index, row in df.iterrows():
+    # Coleta os dados específicos de cada oportunidade
+    cCodIntOp = str(row['cCodIntOp'])
+    cDesOp = str(row['cDesOp'])
+    nCodConta = int(row.get('nCodConta', 0))  # Usa 0 como valor padrão se não estiver presente
+    nCodContato = int(row.get('nCodContato', 0))  # Usa 0 como valor padrão se não estiver presente
+    nCodOrigem = int(row.get('nCodOrigem', 0))  # Usa 0 como valor padrão se não estiver presente
+    nCodSolucao = int(row.get('nCodSolucao', 0))  # Usa 0 como valor padrão se não estiver presente
+    nCodVendedor = int(row.get('nCodVendedor', 0))  # Usa 0 como valor padrão se não estiver presente
+    
+    # Define os parâmetros específicos para esta oportunidade
+    payload_task = {
+        "param": [{
+            "identificacao": {
+                "cCodIntOp": cCodIntOp,
+                "cDesOp": cDesOp,
+                "nCodConta": nCodConta,
+                "nCodContato": nCodContato,
+                "nCodOrigem": nCodOrigem,
+                "nCodSolucao": nCodSolucao,
+                "nCodVendedor": nCodVendedor
+            }
+        }]
+    }
+    
+    # Combina os parâmetros comuns e específicos
+    payload = {**payload_common, **payload_task}
+    
+    # Define os cabeçalhos da requisição
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # Define a URL da API
+    url = 'https://app.omie.com.br/api/v1/crm/oportunidades/'
+    
+    # Envia a requisição POST para a API
+    response = requests.post(url, json=payload, headers=headers)
+    
+    # Verifica o status da resposta
+    if response.status_code == 200:
+        print(f'Oportunidade {cDesOp}/{cCodIntOp} incluída com sucesso')
+    else:
+        print(f'Erro ao incluir oportunidade {cDesOp}/{cCodIntOp}: {response.content}')
+    
+    # Aguarda o intervalo para não exceder 4 requisições por segundo
+    time.sleep(interval)
