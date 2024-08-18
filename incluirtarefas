@@ -4,13 +4,13 @@ import datetime
 import time
 
 # Carrega os dados da planilha de tarefas
-df = pd.read_excel('/content/sample_data/TAREFAS ELEV.xlsx')
+df = pd.read_excel('/content/sample_data/TAREFASELEV.xlsx')
 
 # Define os parâmetros comuns para todas as chamadas
 payload_common = {
     "call": "IncluirTarefa",
-    "app_key": "xxxxxx",
-    "app_secret": "xxxxxx"
+    "app_key": "xxxx",
+    "app_secret": "xxx"
 }
 
 # Define o valor padrão para nCodNotif
@@ -25,7 +25,7 @@ for index, row in df.iterrows():
     nCodOp = int(row['nCodOp'])
     cCodInt = str(row['cCodInt'])
     nCodUsuario = int(row['nCodUsuario'])
-    dData = datetime.datetime.now().strftime("%d/%m/%Y")  # Formata a data atual como 'DD/MM/AAAA'
+    dData = row['dData'].strftime("%d/%m/%Y")  # Formata a data extraída da planilha como 'DD/MM/AAAA'
     cHora = str(row['cHora'])
     nCodAtividade = int(row['nCodAtividade'])
     cRealizada = str(row['cRealizada'])
@@ -68,3 +68,4 @@ for index, row in df.iterrows():
     
     # Aguarda o intervalo para não exceder 4 requisições por segundo
     time.sleep(interval)
+
