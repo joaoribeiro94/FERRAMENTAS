@@ -1,0 +1,32 @@
+import urllib.parse
+import pandas as pd
+import requests
+import datetime
+
+df = pd.read_excel('/content/sample_data/CONTAS CORRENTES CUSTOM.xlsx')
+
+for index, row in df.iterrows():
+    cCodCCInt = int(row['cCodCCInt'])
+    tipo_conta_corrente = str(row['tipo_conta_corrente'])
+    codigo_banco = int(row['codigo_banco'])
+    descricao = str(row['descricao'])
+    saldo_inicial = int(row['saldo_inicial'])
+    nao_fluxo = str(row['nao_fluxo'])
+    nao_resumo = str(row['nao_resumo'])
+    
+    payload = {
+        "call": "IncluirContaCorrente",
+        "app_key": "4749947583381",
+        "app_secret": "61c7dd329eb0fa3394d9f2d7fa161a3d",
+        "param": [{"cCodCCInt":cCodCCInt,"tipo_conta_corrente":tipo_conta_corrente,"codigo_banco":codigo_banco,"descricao":descricao,"saldo_inicial":saldo_inicial,"nao_fluxo":nao_fluxo,"nao_resumo":nao_resumo}]
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    url = 'https://app.omie.com.br/api/v1/geral/contacorrente/'
+    response = requests.post(url, json=payload, headers=headers)
+
+    if response.status_code == 200:
+        print(f'Tarefa {cCodCCInt}/{descricao} incluída com sucesso')
+    else:
+        print(f'Erro ao incluir tarefa {cCodCCInt}/{descricao}: {response.content}')
