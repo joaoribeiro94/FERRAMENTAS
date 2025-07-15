@@ -1,0 +1,82 @@
+import pandas as pd
+import requests
+import json
+import time
+
+# Configurações da API
+URL = 'https://app.omie.com.br/api/v1/geral/clientes/'
+APP_KEY = '3430208903121'
+APP_SECRET = '94ed62fcadc1d3b12eccee7961a79165'
+
+# Função para chamar a API e obter uma página específica de dados
+def chamar_api(pagina):
+    headers = {'Content-type': 'application/json'}
+    data = {
+        'call': 'ListarClientes',
+        'app_key': APP_KEY,
+        'app_secret': APP_SECRET,
+        'param': [
+            {
+                'pagina': pagina,
+                'registros_por_pagina': 1000,
+                'apenas_importado_api': 'N'
+            }
+        ]
+    }
+
+    response = requests.post(URL, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f'Erro na chamada da API: {response.status_code}')
+        return None
+
+# Função para processar os dados de uma página
+def processar_dados_api(api_data):
+    rows = []
+    columns = set()
+
+    for item in api_data.get('clientes_cadastro', []):
+        row = {}
+        for key, value in item.items():
+            if isinstance(value, dict):
+                for subkey, subvalue in value.items():
+                    row[key + '_' + subkey] = subvalue
+                    columns.add(key + '_' + subkey)
+            elif isinstance(value, list):
+                row[key] = json.dumps(value)
+                columns.add(key)
+            else:
+                row[key] = value
+                columns.add(key)
+        rows.append(row)
+
+    df = pd.DataFrame(rows, columns=sorted(columns))
+    return df
+
+# Coleta de todas as páginas
+pagina = 1
+todos_dados = []
+
+while True:
+    print(f'Processando página {pagina}...')
+    api_data = chamar_api(pagina)
+    if not api_data or not api_data.get('clientes_cadastro'):
+        break
+
+    df_pagina = processar_dados_api(api_data)
+    todos_dados.append(df_pagina)
+
+    if not api_data.get('total_de_paginas') or pagina >= api_data['total_de_paginas']:
+        break
+
+    pagina += 1
+    time.sleep(0.5)  # Evitar sobrecarregar a API
+
+# Juntar todos os dados e salvar
+if todos_dados:
+    df_final = pd.concat(todos_dados, ignore_index=True)
+    df_final.to_excel('/content/sample_data/Clientes_Omie.xlsx', index=False)
+    print('Dados salvos com sucesso no arquivo Clientes_Omie.xlsx!')
+else:
+    print('Nenhum dado encontrado ou erro ao consultar a API.')
