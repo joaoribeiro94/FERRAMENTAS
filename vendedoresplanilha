@@ -73,4 +73,27 @@ todos_dados = []
 
 while True:
     print(f'Processando página {pagina} de vendedores...')
-    api_data = chamar_api_vendedores(pagi_
+    api_data = chamar_api_vendedores(pagina)
+
+    if not api_data or not api_data.get('cadastro'):
+        # Sem dados ou erro
+        break
+
+    df_pagina = processar_dados_vendedores(api_data)
+    todos_dados.append(df_pagina)
+
+    total_de_paginas = api_data.get('total_de_paginas')
+    if not total_de_paginas or pagina >= total_de_paginas:
+        # Já chegou na última página
+        break
+
+    pagina += 1
+    time.sleep(0.5)  # respiro pra não judia da API
+
+# Juntar todos os dados e salvar
+if todos_dados:
+    df_final = pd.concat(todos_dados, ignore_index=True)
+    df_final.to_excel('/content/sample_data/Vendedores_Omie.xlsx', index=False)
+    print('Dados de vendedores salvos com sucesso no arquivo Vendedores_Omie.xlsx!')
+else:
+    print('Nenhum dado de vendedores encontrado ou erro ao consultar a API.')
