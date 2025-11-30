@@ -1,132 +1,196 @@
 import pandas as pd
 import requests
-import datetime
 import time
+import json
 
-# Carregar os dados da planilha de pedidos
-df = pd.read_excel('/content/sample_data/TESTE PEDIDO 2.xlsx')
+# === 1. Carregar a planilha ===
+df = pd.read_excel('/content/sample_data/Pedidos CD AUBICON.xlsx')
+# ou ajuste para o arquivo novo:
+# df = pd.read_excel('/content/sample_data/Pedidos CD AUBICON.xlsx')
 
-# Converte os valores da coluna 'valor_unitario' para float após remover o símbolo 'R$' e possíveis espaços
-df['valor_unitario'] = df['valor_unitario'].replace({'R\$': '', ' ': ''}, regex=True).astype(float)
+# Garantir valor_unitario como float, mesmo se vier com "R$" ou espaços
+df['valor_unitario'] = (
+    df['valor_unitario']
+    .replace({'R\$': '', ' ': ''}, regex=True)
+    .astype(float)
+)
 
-# Converte a coluna de data para o formato correto (DD/MM/YYYY)
-df['data_previsao'] = pd.to_datetime(df['data_previsao'], format='%d/%m/%Y').dt.strftime('%d/%m/%Y')
-df['data_vencimento'] = pd.to_datetime(df['data_vencimento'], format='%d/%m/%Y').dt.strftime('%d/%m/%Y')
+# Garantir data_previsao no formato DD/MM/YYYY (string)
+df['data_previsao'] = pd.to_datetime(
+    df['data_previsao'], dayfirst=True
+).dt.strftime('%d/%m/%Y')
 
-# Define os parâmetros comuns para todas as chamadas
+# === 2. Configuração comum da API ===
+URL = 'https://app.omie.com.br/api/v1/produtos/pedido/'
+APP_KEY = '5233000766994'
+APP_SECRET = '66b47afc87cddfdce34fce2c19e83d26'
+
 payload_common = {
     "call": "IncluirPedido",
-    "app_key": "2000530332801",
-    "app_secret": "0f338fe58689be6bc691966aaff50ca8"
+    "app_key": APP_KEY,
+    "app_secret": APP_SECRET,
 }
 
-# Define o intervalo entre as requisições para não exceder o limite
-interval = 1 / 4  # 4 requisições por segundo
+# Limite de 4 requisições por segundo
+interval = 1 / 4
 
-# Agrupa os dados pelo número do pedido
+# === 3. Agrupar por número do pedido ===
 grouped = df.groupby('numero_pedido')
 
-# Itera sobre cada grupo (pedido)
 for numero_pedido, group in grouped:
-    # Coleta os dados do cabeçalho do pedido
+    # ----- Cabeçalho -----
     codigo_cliente = str(group['codigo_cliente'].iloc[0])
     codigo_pedido_integracao = str(group['codigo_pedido_integracao'].iloc[0])
-    data_previsao = str(group['data_previsao'].iloc[0])  # Garantindo o formato DD/MM/YYYY
-    codigo_parcela = int(group['codigo_parcela'].iloc[0])
+    data_previsao = str(group['data_previsao'].iloc[0])
+    codigo_parcela = str(group['codigo_parcela'].iloc[0])  # string (pode ser "999", "A01" etc.)
     modalidade_frete = str(group['modalidade_frete'].iloc[0])
     codigo_categoria = str(group['codigo_categoria'].iloc[0])
-    codigo_conta_corrente = str(group['codigo_conta_corrente'].iloc[0])
+    codigo_conta_corrente = group['codigo_conta_corrente'].iloc[0]
     enviar_email = str(group['enviar_email'].iloc[0])
     nao_gerar_financeiro = str(group['nao_gerar_financeiro'].iloc[0])
-    obs_venda = str(group['obs_venda'].iloc[0])  # Novo campo
-    utilizar_emails = str(group['utilizar_emails'].iloc[0])  # Novo campo
-    impostos_embutidos = str(group['impostos_embutidos'].iloc[0])  # Novo campo
-    codVend = str(group['nVendedor'].iloc[0])  # Novo campo
+    obs_venda = str(group['obs_venda'].iloc[0])
+    utilizar_emails = str(group['utilizar_emails'].iloc[0])
+    impostos_embutidos = str(group['impostos_embutidos'].iloc[0])
 
-    # Cria a lista de itens do pedido
+    # Pode vir vazio ou NaN
+    codVend_raw = group['nVendedor'].iloc[0] if 'nVendedor' in group.columns else None
+    codVend = int(codVend_raw) if pd.notna(codVend_raw) else None
+
+    codigo_cenario_impostos_raw = group['codigo_cenario_impostos'].iloc[0] if 'codigo_cenario_impostos' in group.columns else None
+    codigo_cenario_impostos = int(codigo_cenario_impostos_raw) if pd.notna(codigo_cenario_impostos_raw) else None
+
+    numero_pedido_cliente = str(group['numero_pedido_cliente'].iloc[0]) if 'numero_pedido_cliente' in group.columns else ''
+
+    # ----- Itens (det) -----
     itens = []
-    
-    # Adiciona os itens do pedido
+
     for _, row in group.iterrows():
+        quantidade = float(row['quantidade'])
+        valor_unitario = float(row['valor_unitario'])
+
+        inf_adic = {
+            "nao_gerar_financeiro": str(row['nao_gerar_financeiro'])
+        }
+
+        # Local de estoque se existir
+        if 'codigo_local_estoque' in row.index and pd.notna(row['codigo_local_estoque']):
+            inf_adic["codigo_local_estoque"] = str(row['codigo_local_estoque'])
+
+        # Cenário de impostos por item se vier na planilha
+        if 'codigo_cenario_impostos' in row.index and pd.notna(row['codigo_cenario_impostos']):
+            inf_adic["codigo_cenario_impostos_item"] = int(row['codigo_cenario_impostos'])
+
+        produto = {
+            "cfop": str(row['cfop']) if 'cfop' in row.index and pd.notna(row['cfop']) else "",
+            "codigo_produto": str(row['codigo_produto']),
+            "descricao": str(row['descricao']),
+            "quantidade": quantidade,
+            "valor_unitario": valor_unitario
+            # ncm, unidade etc. podem ser herdados do cadastro de produto no Omie
+        }
+
         item = {
             "ide": {
                 "codigo_item_integracao": str(row['codigo_item_integracao'])
             },
-            "inf_adic": {
-                "nao_gerar_financeiro": str(row['nao_gerar_financeiro'])
-            },
-            "produto": {
-                "cfop": str(row['cfop']),
-                "codigo_produto": str(row['codigo_produto']),
-                "descricao": str(row['descricao']),
-                "quantidade": int(row['quantidade']),
-                "valor_unitario": float(row['valor_unitario'])
-            }
+            "inf_adic": inf_adic,
+            "produto": produto
         }
+
         itens.append(item)
-    
-    # Define a parcela única para o pedido
-    parcela = {
-        "data_vencimento": str(group['data_vencimento'].iloc[0]),  # Garantindo o formato DD/MM/YYYY
-        "numero_parcela": codigo_parcela,
-        "percentual": 100,  # 100% do valor total
-        "valor": (group['valor_unitario'] * group['quantidade']).sum()  # Valor total do pedido
+
+    # ----- Cabeçalho completo -----
+    cabecalho = {
+        # Se for só número, manda int; senão manda string mesmo
+        "codigo_cliente": int(codigo_cliente) if codigo_cliente.isdigit() else codigo_cliente,
+        "codigo_pedido_integracao": codigo_pedido_integracao,
+        "data_previsao": data_previsao,
+        "etapa": "10",  # Aberto
+        "numero_pedido": str(numero_pedido),
+        "codigo_parcela": codigo_parcela,
+        "quantidade_itens": len(itens)
     }
-    
-    # Define os parâmetros específicos para este pedido
-    payload_pedido = {
-        "param": [{
-            "cabecalho": {
-                "codigo_cliente": codigo_cliente,
-                "codigo_pedido_integracao": codigo_pedido_integracao,
-                "data_previsao": data_previsao,
-                "etapa": "10",
-                "numero_pedido": numero_pedido,
-                "codigo_parcela": codigo_parcela,
-                "quantidade_itens": len(itens)
-            },
-            "det": itens,
-            "frete": {
-                "modalidade": modalidade_frete
-            },
-            "informacoes_adicionais": {
-                "codigo_categoria": codigo_categoria,
-                "codigo_conta_corrente": codigo_conta_corrente,
-                "consumidor_final": "N",  # Assume padrão como 'N'
-                "enviar_email": enviar_email,
-                "utilizar_emails": utilizar_emails,  # Novo campo
-                "impostos_embutidos": impostos_embutidos,  # Novo campo
-                "codVend": codVend  # Novo campo
-            },
-            "observacoes": {
-                "obs_venda": obs_venda  # Novo campo
-            },
-            "lista_parcelas": {
-                "parcela": [parcela]  # Apenas uma parcela
-            }
-        }]
+
+    if codigo_cenario_impostos is not None:
+        cabecalho["codigo_cenario_impostos"] = codigo_cenario_impostos
+
+    # ----- Frete -----
+    frete = {
+        "modalidade": modalidade_frete
     }
-    
-    # Combina os parâmetros comuns e específicos
-    payload = {**payload_common, **payload_pedido}
-    
-    # Define os cabeçalhos da requisição
-    headers = {
-        "Content-Type": "application/json"
+
+    # ----- Informações adicionais -----
+    informacoes_adicionais = {
+        "codigo_categoria": codigo_categoria,
+        "codigo_conta_corrente": int(codigo_conta_corrente),
+        "consumidor_final": "N",
+        "enviar_email": enviar_email,
+        "utilizar_emails": utilizar_emails,
+        # apesar de DEPRECATED na doc, você já usa na planilha – mantém para compatibilidade
+        "impostos_embutidos": impostos_embutidos
     }
-    
-    # Define a URL da API
-    url = 'https://app.omie.com.br/api/v1/produtos/pedido/'
-    
-    # Envia a requisição POST para a API
-    response = requests.post(url, json=payload, headers=headers)
-    
-    # Verifica o status da resposta
-    if response.status_code == 200:
-        print(f'Pedido {numero_pedido} incluído com sucesso')
+
+    if numero_pedido_cliente:
+        informacoes_adicionais["numero_pedido_cliente"] = numero_pedido_cliente
+
+    if codVend is not None:
+        informacoes_adicionais["codVend"] = codVend
+
+    # ----- Observações -----
+    observacoes = {
+        "obs_venda": obs_venda
+    }
+
+    # ----- Monta payload do pedido (sem lista_parcelas) -----
+    pedido = {
+        "cabecalho": cabecalho,
+        "det": itens,
+        "frete": frete,
+        "informacoes_adicionais": informacoes_adicionais,
+        "observacoes": observacoes
+        # Sem "lista_parcelas": Omie irá usar automaticamente o codigo_parcela
+    }
+
+    payload = {
+        **payload_common,
+        "param": [pedido]
+    }
+
+    headers = {"Content-Type": "application/json"}
+
+    # ----- Chamada à API -----
+    try:
+        response = requests.post(URL, json=payload, headers=headers, timeout=30)
+    except Exception as e:
+        print(f"[ERRO REDE] Pedido {numero_pedido} – exceção na requisição: {e}")
+        time.sleep(interval)
+        continue
+
+    if response.status_code != 200:
+        print(f"[ERRO HTTP] Pedido {numero_pedido} – Status {response.status_code}: {response.text}")
+        time.sleep(interval)
+        continue
+
+    # Tenta interpretar o retorno como JSON
+    try:
+        data = response.json()
+    except ValueError:
+        print(f"[ERRO JSON] Pedido {numero_pedido} – retorno não é JSON: {response.text}")
+        time.sleep(interval)
+        continue
+
+    res = data if isinstance(data, dict) else {}
+
+    codigo_status = res.get("codigo_status")
+    descricao_status = res.get("descricao_status")
+    numero_pedido_resposta = res.get("numero_pedido")
+    codigo_pedido_resposta = res.get("codigo_pedido")
+
+    if codigo_status in (None, "0", 0):
+        print(f"[SUCESSO] Pedido planilha {numero_pedido} → Omie #{numero_pedido_resposta} (ID {codigo_pedido_resposta})")
     else:
-        print(f'Erro ao incluir pedido {numero_pedido}: {response.content}')
-    
-    # Aguarda o intervalo para não exceder o limite de requisições
+        print(f"[ERRO OMIE] Pedido {numero_pedido} – status {codigo_status}: {descricao_status}")
+        print("Retorno bruto:", json.dumps(res, ensure_ascii=False, indent=2))
+
     time.sleep(interval)
 
