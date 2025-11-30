@@ -1,0 +1,99 @@
+import pandas as pd
+import requests
+import json
+import time
+
+# Configurações da API
+URL = 'https://app.omie.com.br/api/v1/geral/parcelas/'
+APP_KEY = '3430208903121'
+APP_SECRET = '94ed62fcadc1d3b12eccee7961a79165'
+
+# Função para chamar a API e obter uma página específica de dados
+def chamar_api_parcelas(pagina):
+    headers = {'Content-type': 'application/json'}
+    data = {
+        'call': 'ListarParcelas',
+        'app_key': APP_KEY,
+        'app_secret': APP_SECRET,
+        'param': [
+            {
+                'pagina': pagina,
+                'registros_por_pagina': 1000
+            }
+        ]
+    }
+
+    response = requests.post(URL, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f'Erro na chamada da API (página {pagina}): {response.status_code}')
+        return None
+
+# Função para processar os dados de uma página
+def processar_dados_parcelas(api_data):
+    """
+    A resposta vem como:
+    {
+      "pagina": 1,
+      "total_de_paginas": 1,
+      "registros": 43,
+      "total_de_registros": 43,
+      "cadastros": [ {...}, {...} ]
+    }
+    """
+    rows = []
+    columns = set()
+
+    for item in api_data.get('cadastros', []):
+        row = {}
+        for key, value in item.items():
+            # Aqui tudo é simples (string/int), mas deixei o mesmo padrão
+            # caso o Omie adicione campos mais complexos no futuro
+            if isinstance(value, dict):
+                for subkey, subvalue in value.items():
+                    col_name = f"{key}_{subkey}"
+                    row[col_name] = subvalue
+                    columns.add(col_name)
+            elif isinstance(value, list):
+                # Se algum campo virar lista, joga como JSON na célula
+                row[key] = json.dumps(value)
+                columns.add(key)
+            else:
+                row[key] = value
+                columns.add(key)
+        rows.append(row)
+
+    df = pd.DataFrame(rows, columns=sorted(columns))
+    return df
+
+# Coleta de todas as páginas
+pagina = 1
+todos_dados = []
+
+while True:
+    print(f'Processando página {pagina} de parcelas...')
+    api_data = chamar_api_parcelas(pagina)
+
+    # Se deu erro ou não retornou cadastros, para
+    if not api_data or not api_data.get('cadastros'):
+        break
+
+    df_pagina = processar_dados_parcelas(api_data)
+    todos_dados.append(df_pagina)
+
+    # Verifica se já chegou na última página
+    total_de_paginas = api_data.get('total_de_paginas')
+    if not total_de_paginas or pagina >= total_de_paginas:
+        break
+
+    pagina += 1
+    time.sleep(0.5)  # respiro para não judiar da API
+
+# Juntar todos os dados e salvar
+if todos_dados:
+    df_final = pd.concat(todos_dados, ignore_index=True)
+    df_final.to_excel('/content/sample_data/Parcelas_Omie.xlsx', index=False)
+    print('Dados de parcelas salvos com sucesso no arquivo Parcelas_Omie.xlsx!')
+else:
+    print('Nenhum dado de parcelas encontrado ou erro ao consultar a API.')
