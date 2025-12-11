@@ -1,0 +1,117 @@
+import pandas as pd
+import requests
+import json
+import time
+
+# =======================
+# CONFIGURAÇÕES DA API
+# =======================
+URL = "https://app.omie.com.br/api/v1/financas/contareceber/"
+APP_KEY = "5233023766971"
+APP_SECRET = "434b41459aa4805ad656b4f045770a4b"
+
+# Caminho do arquivo de saída
+CAMINHO_ARQUIVO = "/content/sample_data/export aubicon receber.xlsx"
+
+
+def chamar_api(pagina):
+    """
+    Chama a API ListarContasReceber para uma página específica.
+    """
+    headers = {"Content-type": "application/json"}
+    data = {
+        "call": "ListarContasReceber",
+        "app_key": APP_KEY,
+        "app_secret": APP_SECRET,
+        "param": [
+            {
+                "pagina": pagina,
+                "registros_por_pagina": 1000,
+                "apenas_importado_api": "N",
+            }
+        ],
+    }
+
+    response = requests.post(URL, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Erro na chamada da API (página {pagina}): {response.status_code}")
+        return None
+
+
+def processar_dados_api(api_data):
+    """
+    Processa os dados de uma página da API:
+    - 'conta_receber_cadastro' é a lista principal
+    - dicionários internos (ex.: 'boleto', 'info') são achatados em colunas
+    - listas (ex.: 'categorias', 'distribuicao') são armazenadas como JSON
+    """
+    rows = []
+    columns = set()
+
+    for item in api_data.get("conta_receber_cadastro", []):
+        row = {}
+
+        for key, value in item.items():
+            # Dicionário (ex.: boleto, info)
+            if isinstance(value, dict):
+                for subkey, subvalue in value.items():
+                    col_name = f"{key}_{subkey}"
+                    row[col_name] = subvalue
+                    columns.add(col_name)
+
+            # Lista (ex.: categorias, distribuicao)
+            elif isinstance(value, list):
+                # Mantém a lista como JSON em uma única coluna
+                row[key] = json.dumps(value, ensure_ascii=False)
+                columns.add(key)
+
+            # Valor simples
+            else:
+                row[key] = value
+                columns.add(key)
+
+        rows.append(row)
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows, columns=sorted(columns))
+    return df
+
+
+def main():
+    pagina = 1
+    todos_dados = []
+
+    while True:
+        print(f"Processando página {pagina}...")
+        api_data = chamar_api(pagina)
+
+        # Parar se não vier nada ou se não tiver o array esperado
+        if not api_data or not api_data.get("conta_receber_cadastro"):
+            break
+
+        df_pagina = processar_dados_api(api_data)
+        if not df_pagina.empty:
+            todos_dados.append(df_pagina)
+
+        # Verifica se já chegou na última página
+        total_de_paginas = api_data.get("total_de_paginas")
+        if not total_de_paginas or pagina >= total_de_paginas:
+            break
+
+        pagina += 1
+        time.sleep(0.5)  # pequeno delay para não encher a API
+
+    if todos_dados:
+        df_final = pd.concat(todos_dados, ignore_index=True)
+        df_final.to_excel(CAMINHO_ARQUIVO, index=False)
+        print(f"Dados salvos com sucesso em: {CAMINHO_ARQUIVO}")
+    else:
+        print("Nenhum dado encontrado ou erro ao consultar a API.")
+
+
+if __name__ == "__main__":
+    main()
