@@ -1,0 +1,114 @@
+import pandas as pd
+import requests
+import json
+import time
+
+# =======================
+# CONFIGURAÇÕES DA API
+# =======================
+URL = "https://app.omie.com.br/api/v1/financas/contapagar/"
+APP_KEY = "5233023766971"
+APP_SECRET = "434b41459aa4805ad656b4f045770a4b"
+
+# Caminho do arquivo de saída
+CAMINHO_ARQUIVO = "/content/sample_data/AUBICON CONF PAGAR.xlsx"
+
+
+def chamar_api(pagina):
+    """
+    Chama a API ListarContasPagar para uma página específica.
+    """
+    headers = {"Content-type": "application/json"}
+    data = {
+        "call": "ListarContasPagar",
+        "app_key": APP_KEY,
+        "app_secret": APP_SECRET,
+        "param": [
+            {
+                "pagina": pagina,
+                "registros_por_pagina": 1000,
+                "apenas_importado_api": "N",
+            }
+        ],
+    }
+
+    response = requests.post(URL, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Erro na chamada da API (página {pagina}): {response.status_code}")
+        return None
+
+
+def processar_dados_api(api_data):
+    """
+    Processa os dados de uma página da API:
+    - 'conta_pagar_cadastro' é a lista principal
+    - dicionários internos são achatados em colunas
+    - listas são armazenadas como JSON
+    """
+    rows = []
+    columns = set()
+
+    for item in api_data.get("conta_pagar_cadastro", []):
+        row = {}
+
+        for key, value in item.items():
+
+            # Dicionários internos
+            if isinstance(value, dict):
+                for subkey, subvalue in value.items():
+                    col_name = f"{key}_{subkey}"
+                    row[col_name] = subvalue
+                    columns.add(col_name)
+
+            # Listas
+            elif isinstance(value, list):
+                row[key] = json.dumps(value, ensure_ascii=False)
+                columns.add(key)
+
+            # Valores simples
+            else:
+                row[key] = value
+                columns.add(key)
+
+        rows.append(row)
+
+    if not rows:
+        return pd.DataFrame()
+
+    return pd.DataFrame(rows, columns=sorted(columns))
+
+
+def main():
+    pagina = 1
+    todos_dados = []
+
+    while True:
+        print(f"Processando página {pagina}...")
+        api_data = chamar_api(pagina)
+
+        if not api_data or not api_data.get("conta_pagar_cadastro"):
+            break
+
+        df_pagina = processar_dados_api(api_data)
+        if not df_pagina.empty:
+            todos_dados.append(df_pagina)
+
+        total_de_paginas = api_data.get("total_de_paginas")
+        if not total_de_paginas or pagina >= total_de_paginas:
+            break
+
+        pagina += 1
+        time.sleep(0.5)
+
+    if todos_dados:
+        df_final = pd.concat(todos_dados, ignore_index=True)
+        df_final.to_excel(CAMINHO_ARQUIVO, index=False)
+        print(f"Dados salvos com sucesso em: {CAMINHO_ARQUIVO}")
+    else:
+        print("Nenhum dado encontrado ou erro ao consultar a API.")
+
+
+if __name__ == "__main__":
+    main()
